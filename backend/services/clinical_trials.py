@@ -80,29 +80,40 @@ def parse_study(study):
         "start_date": status.get("startDateStruct", {}).get("date"),
         "sites": sites,
     }
-def fetch_all_trials(condition=None, drug=None, status=None, max_trials=1000):
+def fetch_all_trials(
+    condition=None,
+    drug=None,
+    status=None,
+    max_trials=1000,
+    on_progress=None
+):
     all_studies = []
     page_token = None
     total = None
-    
-    while True: 
+
+    while True:
         result = fetch_clinical_trials(
-            condition = condition,
-            drug = drug,
-            status = status,
-            page_size = 100,
-            page_token = page_token
+            condition=condition,
+            drug=drug,
+            status=status,
+            page_size=100,
+            page_token=page_token
         )
-        
-        all_studies.extend(result["studies"])
-        
+
+        remaining = max_trials - len(all_studies)
+        all_studies.extend(result["studies"][:remaining])
+
         if total is None:
             total = result["total_trials"]
-            
+
+        if on_progress:
+            on_progress(len(all_studies), min(total, max_trials))
+
         page_token = result["next_page_token"]
-        
+
         if not page_token or len(all_studies) >= max_trials:
             break
+
     return {
         "total_trials": total,
         "fetched": len(all_studies),

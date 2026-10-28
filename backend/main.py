@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from db import create_tables, find_search, save_search, get_sites, get_stats
 from services.clinical_trials import fetch_clinical_trials, fetch_all_trials
 import requests
+import threading
+import uuid
 
 create_tables() 
 
@@ -65,34 +67,73 @@ def get_all_trials(condition: str = "", drug: str = "", status: str = ""):
     except requests.RequestException as error:
         raise HTTPException(status_code=502, detail=str(error))
     
+jobs = {}  # Stores progress information for each search job
+
+
+def run_search_job(job_id, condition, drug, status):
+
+    # Callback function: updates progress after each page
+    def update(done, goal):
+        jobs[job_id]["fetched"] = done
+        jobs[job_id]["goal"] = goal
+
+    try:
+        # Download clinical trials
+        result = fetch_all_trials(
+            condition=condition,
+            drug=drug,
+            status=status,
+            on_progress=update
+        )
+
+        # Save downloaded trials into SQLite
+        jobs[job_id]["search_id"] = save_search(
+            condition, drug, status, result
+        )
+
+        # Mark the job as completed
+        jobs[job_id]["state"] = "done"
+
+    except requests.RequestException as error:
+        # Handle API/network errors
+        jobs[job_id]["state"] = "error"
+        jobs[job_id]["error"] = str(error)
+    
 @app.get("/api/search")
 def search(condition: str = "", drug: str = "", status: str = ""):
-    # Clean the input so "Obesity " and "obesity" count as the same search
     condition = condition.strip().lower()
     drug = drug.strip().lower()
     status = status.strip().upper()
 
+    # Already in the notebook? Answer instantly, no job needed
     cached = find_search(condition, drug, status)
     if cached:
         return {
+            "state": "done",
             "search_id": cached["id"],
-            "total_trials": cached["total_trials"],
             "fetched": cached["fetched"],
+            "goal": cached["fetched"],
             "from_cache": True,
         }
 
-    try:
-        result = fetch_all_trials(condition=condition, drug=drug, status=status)
-    except requests.RequestException as error:
-        raise HTTPException(status_code=502, detail=str(error))
+    # Not cached: start a background job and answer right away
+    job_id = uuid.uuid4().hex
+    jobs[job_id] = {"state": "running", "fetched": 0, "goal": None, "search_id": None}
 
-    search_id = save_search(condition, drug, status, result)
-    return {
-        "search_id": search_id,
-        "total_trials": result["total_trials"],
-        "fetched": result["fetched"],
-        "from_cache": False,
-    }
+    threading.Thread(
+        target=run_search_job,
+        args=(job_id, condition, drug, status),
+        daemon=True,
+    ).start()
+
+    return {"job_id": job_id, "state": "running", "from_cache": False}
+
+
+@app.get("/api/jobs/{job_id}")
+def job_progress(job_id: str):
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return jobs[job_id]
     
 @app.get("/api/searches/{search_id}/sites")
 def search_sites(search_id: int, phase: str = "", status: str = "", country: str = "",
