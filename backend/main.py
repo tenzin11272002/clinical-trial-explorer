@@ -95,9 +95,11 @@ def search(condition: str = "", drug: str = "", status: str = ""):
     }
     
 @app.get("/api/searches/{search_id}/sites")
-def search_sites(search_id: int, phase: str = "", status: str = "", country: str = ""):
-    return get_sites(search_id, phase, status, country)
+def search_sites(search_id: int, phase: str = "", status: str = "", country: str = "",
+                 year_from: int | None = None, year_to: int | None = None):
+    return get_sites(search_id, phase, status, country, year_from, year_to)
 
 @app.get("/api/searches/{search_id}/stats")
-def search_stats(search_id: int, phase: str = "", status: str = "", country: str = ""):
-    return get_stats(search_id, phase, status, country)
+def search_stats(search_id: int, phase: str = "", status: str = "", country: str = "",
+                 year_from: int | None = None, year_to: int | None = None):
+    return get_stats(search_id, phase, status, country, year_from, year_to)

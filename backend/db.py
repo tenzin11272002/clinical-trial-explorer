@@ -91,8 +91,8 @@ def find_search(condition, drug, status):
     conn.close()
     return row
 
-def get_sites(search_id, phase="", status="", country=""):
-    where, params = trial_filters(search_id, phase, status, country)
+def get_sites(search_id, phase="", status="", country="", year_from=None, year_to=None):
+    where, params = trial_filters(search_id, phase, status, country, year_from, year_to)
 
     # On the map, a country filter should also hide pins in other countries
     if country:
@@ -127,8 +127,8 @@ def get_sites(search_id, phase="", status="", country=""):
         "missing_coordinates": missing,
     }
     
-def get_stats(search_id, phase="", status="", country=""):
-    where, params = trial_filters(search_id, phase, status, country)
+def get_stats(search_id, phase="", status="", country="", year_from=None, year_to=None):
+    where, params = trial_filters(search_id, phase, status, country, year_from, year_to)
     conn = get_connection()
 
     kpis = conn.execute(
@@ -186,7 +186,7 @@ def get_stats(search_id, phase="", status="", country=""):
         "by_year": by_year,
     }
     
-def trial_filters(search_id, phase="", status="", country=""):
+def trial_filters(search_id, phase="", status="", country="", year_from=None, year_to=None):
     """Build the WHERE part for the trials table (nickname t)."""
     where = "t.search_id = ?"
     params = [search_id]
@@ -207,5 +207,15 @@ def trial_filters(search_id, phase="", status="", country=""):
             WHERE c.search_id = t.search_id AND c.nct_id = t.nct_id AND c.country = ?
         )"""
         params.append(country)
+    
+    start_year = "CAST(SUBSTR(t.start_date, 1, 4) AS INTEGER)"
+
+    if year_from is not None:
+        where += f" AND {start_year} >= ?"
+        params.append(year_from)
+
+    if year_to is not None:
+        where += f" AND {start_year} <= ?"
+        params.append(year_to)
 
     return where, params
