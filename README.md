@@ -17,7 +17,6 @@ Built for the Eclypse AI full-stack task. Data comes live from the free [Clinica
 - **Filters** that stay at the top while you scroll: phase, status, a **searchable country box** (type "ger" → Germany) and a **start-year range slider**. The map, KPI cards and all charts update together.
 - **Dashboard**: KPI cards (trials, **sites**, countries, recruiting now, total enrollment) and charts for trials by status, by phase, top 10 sponsors and trials started per year.
 - **Compare two drugs** side by side (e.g. semaglutide vs tirzepatide), with name suggestions: KPIs plus grouped charts by phase and status.
-- **Fast**: a repeated search is answered instantly from the SQLite cache, and filters answer in milliseconds thanks to database indexes.
 
 ## Tech stack
 
@@ -145,6 +144,6 @@ The browser asks `/api/suggest`, and the backend asks ClinicalTrials.gov, so the
 
 I used **Claude Code** (Anthropic) throughout the project:
 
-- **Learning and step-by-step guidance.** I'm new to parts of this stack, so I asked it to explain each concept (pagination, caching, SQL `JOIN` / `GROUP BY`, threads and polling, React state and effects) and to break the work into small steps. I built the backend and the core frontend this way and tested each step in Swagger or the browser.
+- **Learning and step-by-step guidance.** I asked it to explain each concept and to break the work into small steps. I built the backend and the core frontend this way and tested each step in Swagger or the browser.
 - **Code review.** After each step it reviewed my code and caught bugs, for example typos in JSON keys that `.get()` defaults were hiding, a duplicate import, and a country count that disagreed with the map.
 - **Code suggestions.** For the bonus features and UI polish I worked more directly from its code, then studied and tested it until I understood how it works.
