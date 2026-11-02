@@ -1,17 +1,20 @@
-// Pin, chart and filter colours by trial status (bonus: pins coloured by status)
+// Pin, chart and filter colours by trial status (bonus: pins coloured by status).
+// Every status has its own colour, grouped by meaning:
+//   open / running → greens and blues, finished → dark slate, stopped → warm colours.
 export const STATUS_COLORS: Record<string, string> = {
-  RECRUITING: "#16a34a", // green
-  NOT_YET_RECRUITING: "#2563eb", // blue
-  ENROLLING_BY_INVITATION: "#0891b2",
-  ACTIVE_NOT_RECRUITING: "#9333ea", // purple
-  COMPLETED: "#64748b", // grey
-  SUSPENDED: "#f59e0b", // orange
-  TERMINATED: "#dc2626", // red
-  WITHDRAWN: "#dc2626",
+  RECRUITING: "#16a34a", // green: open for new participants
+  ENROLLING_BY_INVITATION: "#65a30d", // lime: open, but only by invitation
+  NOT_YET_RECRUITING: "#2563eb", // blue: starting soon
+  ACTIVE_NOT_RECRUITING: "#7c3aed", // violet: running, no new participants
+  COMPLETED: "#334155", // dark slate: finished normally
+  SUSPENDED: "#f59e0b", // amber: paused, may restart
+  TERMINATED: "#dc2626", // red: stopped early
+  WITHDRAWN: "#db2777", // pink: stopped before anyone joined
+  UNKNOWN: "#a8a29e", // light warm grey: status not updated for a long time
 };
 
 export function colorFor(status: string) {
-  return STATUS_COLORS[status] ?? "#94a3b8"; // light grey for UNKNOWN and anything else
+  return STATUS_COLORS[status] ?? STATUS_COLORS.UNKNOWN;
 }
 
 // Turn API codes into words people read easily:

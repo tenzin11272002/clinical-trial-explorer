@@ -1,7 +1,48 @@
-@import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Josefin Sans", ui-sans-serif, system-ui, sans-serif;
+  /* Inter: a clean, very readable font made for screens and numbers */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+}
+
+/* ---------- Map: soften the base map so the coloured pins stand out ---------- */
+.leaflet-tile-pane {
+  filter: grayscale(0.85) brightness(1.04) contrast(0.92);
+}
+
+/* ---------- Map: cluster bubbles in the app's blue instead of Leaflet's yellow/orange ---------- */
+/* ".leaflet-container" in front makes these win over the plugin's own CSS */
+.leaflet-container .marker-cluster-small,
+.leaflet-container .marker-cluster-medium,
+.leaflet-container .marker-cluster-large {
+  background-color: rgb(37 99 235 / 0.2);
+}
+.leaflet-container .marker-cluster-small div,
+.leaflet-container .marker-cluster-medium div,
+.leaflet-container .marker-cluster-large div {
+  background-color: rgb(37 99 235 / 0.85);
+  color: white;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
+/* ---------- Map popups: match the app's font and spacing ---------- */
+.leaflet-popup-content-wrapper {
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 25px -5px rgb(15 23 42 / 0.2);
+}
+.leaflet-popup-content {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 12px 14px;
+}
+.leaflet-container {
+  font-family: var(--font-sans);
 }

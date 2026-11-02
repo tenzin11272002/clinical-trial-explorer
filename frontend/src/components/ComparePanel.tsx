@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
+import { GitCompareArrows, Loader2, Pill, Stethoscope } from "lucide-react";
 import {
   Bar,
   BarChart,
+  CartesianGrid,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -17,6 +19,9 @@ import {
   type Stats,
 } from "../api";
 import { pretty } from "../constants";
+import { labelClass, primaryButton } from "../styles";
+import SuggestInput from "./SuggestInput";
+import { Card, CardHeader } from "./ui";
 
 const COLOR_A = "#2563eb"; // blue
 const COLOR_B = "#f97316"; // orange
@@ -38,8 +43,10 @@ function mergeCounts(a: LabelCount[], b: LabelCount[]) {
 
 function progressText(name: string, p: JobProgress | null) {
   if (!p) return `${name}: starting…`;
-  return `${name}: fetched ${p.fetched} of ${p.goal ?? "…"} trials`;
+  return `${name}: fetched ${p.fetched.toLocaleString()} of ${p.goal?.toLocaleString() ?? "…"} trials`;
 }
+
+const axisTick = { fontSize: 11, fill: "#64748b" };
 
 function CompareChart(props: {
   title: string;
@@ -50,23 +57,58 @@ function CompareChart(props: {
 }) {
   const data = mergeCounts(props.a, props.b);
   return (
-    <div className="rounded-lg bg-white p-4 shadow">
-      <h3 className="mb-3 font-semibold text-slate-800">{props.title}</h3>
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={data}>
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 11 }}
-            tickFormatter={(v: string) => pretty(v)}
-          />
-          <YAxis allowDecimals={false} />
-          <Tooltip labelFormatter={(v) => pretty(String(v))} />
-          <Legend />
-          <Bar dataKey="a" name={props.drugA} fill={COLOR_A} />
-          <Bar dataKey="b" name={props.drugB} fill={COLOR_B} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    <Card>
+      <CardHeader title={props.title} />
+      <div className="px-3 py-4">
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data} margin={{ right: 8 }}>
+            <CartesianGrid vertical={false} stroke="#f1f5f9" />
+            <XAxis
+              dataKey="label"
+              tick={axisTick}
+              axisLine={false}
+              tickLine={false}
+              interval={0}
+              angle={-35}
+              textAnchor="end"
+              height={70}
+              tickFormatter={(v: string) => pretty(v)}
+            />
+            <YAxis
+              allowDecimals={false}
+              tick={axisTick}
+              axisLine={false}
+              tickLine={false}
+              width={36}
+            />
+            <Tooltip
+              cursor={{ fill: "#f8fafc" }}
+              contentStyle={{
+                borderRadius: 8,
+                border: "1px solid #e2e8f0",
+                fontSize: 12,
+              }}
+              labelFormatter={(v) => pretty(String(v))}
+            />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar
+              dataKey="a"
+              name={props.drugA}
+              fill={COLOR_A}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={28}
+            />
+            <Bar
+              dataKey="b"
+              name={props.drugB}
+              fill={COLOR_B}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={28}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
   );
 }
 
@@ -113,63 +155,108 @@ export default function ComparePanel() {
     ["Trials", "total_trials"],
     ["Total enrollment", "total_enrollment"],
     ["Recruiting now", "recruiting"],
+    ["Sites", "sites"],
     ["Countries", "countries"],
   ];
 
   return (
     <div className="space-y-4">
-      <form onSubmit={handleCompare} className="rounded-lg bg-white p-4 shadow">
-        <div className="flex flex-wrap gap-3">
-          <input
-            className="flex-1 rounded border border-slate-300 px-3 py-2"
-            placeholder="Condition (optional, e.g. obesity)"
-            value={condition}
-            onChange={(e) => setCondition(e.target.value)}
-          />
-          <input
-            className="flex-1 rounded border-2 px-3 py-2"
-            style={{ borderColor: COLOR_A }}
-            placeholder="Drug A (e.g. semaglutide)"
-            value={drugA}
-            onChange={(e) => setDrugA(e.target.value)}
-          />
-          <input
-            className="flex-1 rounded border-2 px-3 py-2"
-            style={{ borderColor: COLOR_B }}
-            placeholder="Drug B (e.g. tirzepatide)"
-            value={drugB}
-            onChange={(e) => setDrugB(e.target.value)}
-          />
+      <Card className="p-5">
+        <div className="mb-4">
+          <h2 className="text-base font-semibold text-slate-900">
+            Compare two drugs
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Runs both searches at the same time and puts the results side by
+            side.
+          </p>
+        </div>
+
+        <form
+          onSubmit={handleCompare}
+          className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end"
+        >
+          <label className={labelClass}>
+            Condition (optional)
+            <SuggestInput
+              field="condition"
+              placeholder="e.g. obesity"
+              icon={<Stethoscope className="h-4 w-4" />}
+              value={condition}
+              onChange={setCondition}
+            />
+          </label>
+          <label className={labelClass}>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: COLOR_A }}
+              />
+              Drug A
+            </span>
+            <SuggestInput
+              field="drug"
+              placeholder="e.g. semaglutide"
+              icon={<Pill className="h-4 w-4" style={{ color: COLOR_A }} />}
+              value={drugA}
+              onChange={setDrugA}
+            />
+          </label>
+          <label className={labelClass}>
+            <span className="flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: COLOR_B }}
+              />
+              Drug B
+            </span>
+            <SuggestInput
+              field="drug"
+              placeholder="e.g. tirzepatide"
+              icon={<Pill className="h-4 w-4" style={{ color: COLOR_B }} />}
+              value={drugB}
+              onChange={setDrugB}
+            />
+          </label>
           <button
             type="submit"
             disabled={busy}
-            className="rounded bg-blue-600 px-5 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
+            className={`${primaryButton} h-[38px]`}
           >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <GitCompareArrows className="h-4 w-4" />
+            )}
             {busy ? "Comparing…" : "Compare"}
           </button>
-        </div>
+        </form>
 
         {busy && (
-          <div className="mt-3 space-y-1 text-sm text-slate-600">
+          <div className="mt-4 space-y-1 text-xs text-slate-600">
             <p>{progressText(drugA, progressA)}</p>
             <p>{progressText(drugB, progressB)}</p>
           </div>
         )}
 
-        {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-      </form>
+        {error && (
+          <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+      </Card>
 
       {result && (
         <>
-          <div className="overflow-x-auto rounded-lg bg-white p-4 shadow">
+          <Card className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-slate-500">
-                  <th className="py-1"></th>
-                  <th className="py-1" style={{ color: COLOR_A }}>
+                <tr className="border-b border-slate-100 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                  <th className="px-5 py-3"></th>
+                  <th className="px-5 py-3" style={{ color: COLOR_A }}>
                     {result.drugA}
                   </th>
-                  <th className="py-1" style={{ color: COLOR_B }}>
+                  <th className="px-5 py-3" style={{ color: COLOR_B }}>
                     {result.drugB}
                   </th>
                 </tr>
@@ -177,20 +264,20 @@ export default function ComparePanel() {
               <tbody>
                 {kpiRows.map(([label, key]) => (
                   <tr key={key} className="border-t border-slate-100">
-                    <td className="py-2 text-slate-500">{label}</td>
-                    <td className="py-2 font-semibold">
+                    <td className="px-5 py-3 text-slate-600">{label}</td>
+                    <td className="px-5 py-3 font-semibold tabular-nums text-slate-900">
                       {result.a.kpis[key].toLocaleString()}
                     </td>
-                    <td className="py-2 font-semibold">
+                    <td className="px-5 py-3 font-semibold tabular-nums text-slate-900">
                       {result.b.kpis[key].toLocaleString()}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <CompareChart
               title="Trials by phase"
               a={result.a.by_phase}

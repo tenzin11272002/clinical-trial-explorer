@@ -36,6 +36,7 @@ export type Site = {
   lon: number;
   title: string;
   status: string;
+  phase: string;
 };
 
 export type SitesResponse = {
@@ -51,6 +52,7 @@ export type Stats = {
     total_enrollment: number;
     recruiting: number;
     countries: number;
+    sites: number;
   };
   by_status: LabelCount[];
   by_phase: LabelCount[];
@@ -126,6 +128,14 @@ export async function runSearch(
     if (job.state === "done") return job.search_id!;
     if (job.state === "error") throw new Error(job.error ?? "Search failed.");
   }
+}
+
+// Type-ahead suggestions for the condition or drug box
+export async function getSuggestions(field: "condition" | "drug", q: string) {
+  const res = await api.get<string[]>("/api/suggest", {
+    params: { field, q },
+  });
+  return res.data;
 }
 
 export async function getSites(searchId: number, filters: Filters = {}) {

@@ -30,12 +30,14 @@ export default function YearSlider({ min, max, from, to, onChange }: Props) {
   }
 
   return (
-    <div className="text-sm text-slate-600">
+    <div className="text-xs font-medium text-slate-600">
       <p>
-        Start year: <b className="text-slate-900">{low}</b> –{" "}
-        <b className="text-slate-900">{high}</b>
+        Start year{" "}
+        <span className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 font-semibold text-slate-900">
+          {low} – {high}
+        </span>
       </p>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-2 flex h-[30px] items-center gap-2">
         <input
           type="range"
           aria-label="Start year from"

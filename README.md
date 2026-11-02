@@ -4,24 +4,26 @@ Search clinical trials for a condition and/or drug and see them on an interactiv
 
 Built for the Eclypse AI full-stack task. Data comes live from the free [ClinicalTrials.gov API v2](https://clinicaltrials.gov/data-api/api).
 
-![Example search: obesity + semaglutide](docs/screenshot.png)
-<!-- Add a screenshot at docs/screenshot.png, or remove this line. -->
+<!-- To show a screenshot here: save one as docs/screenshot.png and replace this comment with
+![Example search: obesity + semaglutide](docs/screenshot.png) -->
 
 ## Features
 
-- **Search** by condition, drug and status, with a **live progress bar** ("Downloading 300 of 1000 trials…"). One-click example searches for first-time visitors.
-- **Clustered world map** of every trial site, with **pins coloured by status** and a legend. Click a pin to see the trial, site and status, then open the full details.
-- **Trial details panel**: status, phase, sponsor, enrollment, start date, number of sites and countries, and a link to the trial on ClinicalTrials.gov.
-- **Filters**: phase, status, country and a **start-year range slider**. The map, KPI cards and all charts update together.
-- **Dashboard**: KPI cards (trials, total enrollment, recruiting now, countries) and charts for trials by status, by phase, top 10 sponsors and trials per start year.
-- **Compare two drugs** side by side (e.g. semaglutide vs tirzepatide): KPIs plus grouped charts by phase and status.
-- **Caching**: a repeated search is answered instantly from SQLite.
+- **Search** by condition, drug and status, with a **live progress bar** ("Downloading 300 of 1,000 trials… 30%").
+  - **Name suggestions while you type**, from ClinicalTrials.gov's own list (e.g. "dia" → Diabetes, Diabetic Retinopathy; "metf" → Metformin).
+  - One-click **example searches** for first-time visitors, and a **Clear** button to start over.
+- **Clustered world map** of every trial site, with **pins coloured by status** and a legend. Click a pin to see the trial name, **phase, status and site**, then open the full details.
+- **Trial details panel**: status and phase badges, sponsor, enrollment, start date, number of sites and countries, a "sites by country" chart, and a link to the trial on ClinicalTrials.gov.
+- **Filters** that stay at the top while you scroll: phase, status, a **searchable country box** (type "ger" → Germany) and a **start-year range slider**. The map, KPI cards and all charts update together.
+- **Dashboard**: KPI cards (trials, **sites**, countries, recruiting now, total enrollment) and charts for trials by status, by phase, top 10 sponsors and trials started per year.
+- **Compare two drugs** side by side (e.g. semaglutide vs tirzepatide), with name suggestions: KPIs plus grouped charts by phase and status.
+- **Fast**: a repeated search is answered instantly from the SQLite cache, and filters answer in milliseconds thanks to database indexes.
 
 ## Tech stack
 
 | Part | Choice |
 |---|---|
-| Frontend | React 19 + Vite + TypeScript, Tailwind CSS v4 |
+| Frontend | React 19 + Vite + TypeScript, Tailwind CSS v4, `lucide-react` icons |
 | Map | Leaflet + react-leaflet, `leaflet.markercluster` |
 | Charts | Recharts |
 | HTTP | Axios |
@@ -73,19 +75,25 @@ GET /api/jobs/{id}  (every 1 s) ◄── progress: fetched / goal           fol
 GET /api/searches/{id}/sites  ?phase&status&country&year_from&year_to   → map pins
 GET /api/searches/{id}/stats  ?same filters                             → KPIs + charts
 GET /api/searches/{id}/trials/{nct_id}                                  → details panel
+GET /api/suggest?field=condition|drug&q=dia                             → name suggestions while typing
 ```
 
 ### Backend files
 
-- `backend/services/clinical_trials.py`: calls the API, follows `nextPageToken` page by page, and flattens each study's nested JSON into a simple trial with a list of sites.
-- `backend/db.py`: SQLite tables (`searches`, `trials`, `sites`), the cache lookup, and the queries for sites, stats and trial details.
+- `backend/services/clinical_trials.py`: calls the API, follows `nextPageToken` page by page, and flattens each study's nested JSON into a simple trial with a list of sites. Also `suggest()`, which fetches and tidies name suggestions (cached with `lru_cache`).
+- `backend/db.py`: SQLite tables (`searches`, `trials`, `sites`) and their indexes, the cache lookup, the shared filter helper, and the queries for sites, stats and trial details.
 - `backend/main.py`: the FastAPI endpoints and the background search jobs.
 
 ### Frontend files
 
 - `src/api.ts`: every backend call plus TypeScript types for the data. `runSearch()` starts a search and polls its progress.
-- `src/components/`: `SearchPanel`, `FilterBar`, `YearSlider`, `Dashboard`, `TrialMap`, `TrialDetails`, `ComparePanel`.
-- `src/constants.ts`: status colours and `pretty()`, which turns API codes into readable labels (`NOT_YET_RECRUITING` → "Not yet recruiting").
+- `src/App.tsx`: the page layout and the shared state (current search, filters, selected trial).
+- `src/components/`
+  - `SearchPanel`, `SuggestInput` (text box with suggestions), `FilterBar`, `CountryPicker` (searchable country box), `YearSlider`
+  - `Dashboard` (KPI cards and charts), `TrialMap`, `TrialDetails`, `ComparePanel`
+  - `ui.tsx`: small shared building blocks (`Card`, `CardHeader`, `Badge`) so every panel looks the same
+- `src/constants.ts`: status colours and `pretty()`, which turns API codes into readable labels (`NOT_YET_RECRUITING` → "Not yet recruiting", `PHASE2/PHASE3` → "Phase 2/3").
+- `src/styles.ts`: shared Tailwind classes for inputs, labels and buttons.
 
 ## Design decisions
 
@@ -97,6 +105,12 @@ Each search is saved once (one row per trial, one row per site). Filters and cha
 
 **Background job + polling for progress.**
 A big search takes 5–15 seconds (up to 10 pages). `/api/search` starts the download in a background thread and returns a job id at once. The frontend asks `/api/jobs/{id}` every second and shows "fetched X of Y". This needs no WebSockets and is easy to follow.
+
+**Database indexes for fast filters.**
+The `sites` table holds every site of every saved search (about 60,000 rows after a few searches). Without indexes, filtering by country made SQLite read all of them for each trial, which took up to 15 seconds. Three indexes on `(search_id, nct_id, …)` and `(search_id, country)` bring every filter down to a few milliseconds, with identical results.
+
+**Suggestions through the backend.**
+The browser asks `/api/suggest`, and the backend asks ClinicalTrials.gov, so the frontend only ever talks to one server. The backend waits for at least 2 letters, caches answers, and tidies the list (removes stray escape characters, long descriptions and repeats). The frontend waits until you pause typing for 250 ms (a "debounce") and ignores answers that arrive after you have typed more.
 
 **A safety limit of 1,000 trials per search.**
 "Obesity" alone matches about 15,000 trials. Downloading all of them would take minutes, so a search stops after 1,000 trials (10 pages). The progress bar counts to the real goal (`min(total, 1000)`), so it never gets stuck.
@@ -113,8 +127,9 @@ A big search takes 5–15 seconds (up to 10 pages). `/api/search` starts the dow
 - **1,000-trial limit per search.** Very broad searches show a sample of the matching trials, not all of them. The total that ClinicalTrials.gov reports is stored, but the UI does not show it yet.
 - **The cache never expires.** A saved search is not refreshed, so trials added to ClinicalTrials.gov later will not appear. A simple fix would be to ignore cached searches older than e.g. 24 hours.
 - **Jobs live in memory.** Restarting the backend forgets searches that were still downloading (finished searches are safe in SQLite). A single server process is assumed.
-- **Status and year are filtered after the download.** The status in the search form is sent to the API; the year range is applied afterwards as a filter, not as part of the API query.
+- **The year range is a filter on the saved results**, not part of the API query. For a search capped at 1,000 trials, the slider filters that sample rather than fetching trials from the chosen years.
 - **Trials without a start date** are excluded when a year range is active.
+- **Name suggestions** use ClinicalTrials.gov's type-ahead service (`/api/int/suggest`), the one their own website uses. It is not part of the documented API, so it could change; if it fails, the boxes simply show no suggestions and search still works.
 - **Total enrollment** is a plain sum, so a few very large observational studies (100,000+ people) can dominate it.
 - **Year slider** filters a range; it does not animate year by year. **Compare two drugs** compares the numbers and charts, not both drugs on one map.
 - No automated tests yet; everything was tested by hand (Swagger at `/docs` for the backend, the browser for the frontend).
