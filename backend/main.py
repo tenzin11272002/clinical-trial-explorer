@@ -1,7 +1,9 @@
+from typing import Literal
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from db import create_tables, find_search, save_search, get_sites, get_stats
-from services.clinical_trials import fetch_clinical_trials, fetch_all_trials
+from db import create_tables, find_search, save_search, get_sites, get_stats, get_trial
+from services.clinical_trials import fetch_clinical_trials, fetch_all_trials, suggest
 import requests
 import threading
 import uuid
@@ -144,3 +146,22 @@ def search_sites(search_id: int, phase: str = "", status: str = "", country: str
 def search_stats(search_id: int, phase: str = "", status: str = "", country: str = "",
                  year_from: int | None = None, year_to: int | None = None):
     return get_stats(search_id, phase, status, country, year_from, year_to)
+
+@app.get("/api/searches/{search_id}/trials/{nct_id}")
+def trial_detail(search_id: int, nct_id: str):
+    trial = get_trial(search_id, nct_id)
+    if trial is None:
+        raise HTTPException(status_code=404, detail="Trial not found")
+    return trial
+
+
+@app.get("/api/suggest")
+def suggest_names(field: Literal["condition", "drug"], q: str = ""):
+    """Type-ahead suggestions for the condition or drug box."""
+    text = q.strip().lower()
+    if len(text) < 2:   # 1 letter matches too much to be useful
+        return []
+    try:
+        return list(suggest(field, text))
+    except requests.RequestException:
+        return []   # suggestions are a nice extra: if they fail, the search still works

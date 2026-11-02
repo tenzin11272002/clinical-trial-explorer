@@ -42,6 +42,12 @@ def create_tables():
             lat REAL,
             lon REAL
         );
+
+        -- Indexes: like the index at the back of a book. Without them SQLite reads
+        -- every row to find e.g. "sites of this trial in Germany" (15 s instead of 0.05 s).
+        CREATE INDEX IF NOT EXISTS idx_trials_search ON trials (search_id, nct_id);
+        CREATE INDEX IF NOT EXISTS idx_sites_trial ON sites (search_id, nct_id, country);
+        CREATE INDEX IF NOT EXISTS idx_sites_country ON sites (search_id, country);
     """)
     conn.commit()
     conn.close()
@@ -104,7 +110,7 @@ def get_sites(search_id, phase="", status="", country="", year_from=None, year_t
     rows = conn.execute(
         f"""
         SELECT s.nct_id, s.facility, s.city, s.country, s.lat, s.lon,
-               t.title, t.status
+               t.title, t.status, t.phase
         FROM sites s
         JOIN trials t ON t.search_id = s.search_id AND t.nct_id = s.nct_id
         WHERE {where} AND s.lat IS NOT NULL AND s.lon IS NOT NULL
@@ -161,6 +167,19 @@ def get_stats(search_id, phase="", status="", country="", year_from=None, year_t
         country_params,
     ).fetchone()[0]
 
+    # Number of sites (same rule as the map: a country filter keeps only that country's sites)
+    sites = conn.execute(
+        f"""
+        SELECT COUNT(*)
+        FROM sites s
+        JOIN trials t
+            ON t.search_id = s.search_id
+            AND t.nct_id = s.nct_id
+        WHERE {country_where}
+        """,
+        country_params,
+    ).fetchone()[0]
+
     # Helper: run a GROUP BY query using the same filters
     def group(select, group_by, order_by, extra=""):
         sql = f"SELECT {select} FROM trials t WHERE {where} {extra} GROUP BY {group_by} ORDER BY {order_by}"
@@ -179,7 +198,7 @@ def get_stats(search_id, phase="", status="", country="", year_from=None, year_t
 
     conn.close()
     return {
-        "kpis": {**dict(kpis), "countries": countries},
+        "kpis": {**dict(kpis), "countries": countries, "sites": sites},
         "by_status": by_status,
         "by_phase": by_phase,
         "top_sponsors": top_sponsors,
@@ -219,3 +238,27 @@ def trial_filters(search_id, phase="", status="", country="", year_from=None, ye
         params.append(year_to)
 
     return where, params
+
+def get_trial(search_id, nct_id):
+    conn = get_connection()
+
+    trial = conn.execute(
+        "SELECT * FROM trials WHERE search_id = ? AND nct_id = ?",
+        (search_id, nct_id),
+    ).fetchone()
+
+    if trial is None:
+        conn.close()
+        return None
+
+    sites = conn.execute(
+        """
+        SELECT facility, city, country, lat, lon FROM sites
+        WHERE search_id = ? AND nct_id = ?
+        ORDER BY country, city
+        """,
+        (search_id, nct_id),
+    ).fetchall()
+
+    conn.close()
+    return {**dict(trial), "sites": [dict(site) for site in sites]}

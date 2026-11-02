@@ -1,6 +1,13 @@
+from functools import lru_cache
+
 import requests
 
 BASE_URL = "https://clinicaltrials.gov/api/v2/studies"
+
+# The "type-ahead" list ClinicalTrials.gov's own website uses in its search boxes.
+# Note: it lives under /api/int/ ("internal"), so it is not part of the official, documented API.
+SUGGEST_URL = "https://clinicaltrials.gov/api/int/suggest"
+SUGGEST_DICTIONARIES = {"condition": "Condition", "drug": "InterventionName"}
 
 
 def fetch_clinical_trials(
@@ -120,6 +127,22 @@ def fetch_all_trials(
         "studies": all_studies
     }
 
-        
-        
-    
+
+@lru_cache(maxsize=1000)  # remember answers, so typing "dia" twice only asks once
+def suggest(field, text):
+    """Up to 8 name suggestions for what the user has typed so far."""
+    response = requests.get(
+        SUGGEST_URL,
+        params={"input": text, "dictionary": SUGGEST_DICTIONARIES[field]},
+        timeout=5,
+    )
+    response.raise_for_status()
+
+    # Tidy the raw list: remove stray "\\" escapes, skip long sentences, skip repeats
+    names = []
+    for raw in response.json():
+        name = raw.replace("\\", "").strip()
+        if len(name) > 60 or name.lower() in (n.lower() for n in names):
+            continue
+        names.append(name)
+    return tuple(names[:8])  # a tuple, so the cached value can't be changed by accident
